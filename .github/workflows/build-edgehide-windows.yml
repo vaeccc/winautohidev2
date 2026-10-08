@@ -1,0 +1,68 @@
+name: Build EdgeHide Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'EdgeHide/**'
+      - '.github/workflows/build-edgehide-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile AHK v2 to standalone EXE
+        uses: benmusson/ahk2exe-action@v1
+        with:
+          in: .\EdgeHide\src\EdgeHide.ahk
+          out: .\EdgeHide\dist\EdgeHide.exe
+          target: x64
+          compression: none
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify and validate EXE and script
+        shell: pwsh
+        run: |
+          $out = 'EdgeHide/dist/EdgeHide.exe'
+          if (-not (Test-Path $out)) { throw 'EXE not generated' }
+          if ((Get-Item $out).Length -lt 100000) { throw 'EXE unexpectedly small' }
+          $runtime = Get-ChildItem -Path '.ahk2exe-v2-action' -Recurse -Filter 'AutoHotkey64.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($runtime) {
+            & $runtime.FullName /ErrorStdOut=UTF-8 /Validate 'EdgeHide/src/EdgeHide.ahk'
+            if ($LASTEXITCODE -ne 0) { throw 'AutoHotkey v2 syntax validation failed' }
+          } else {
+            Write-Warning 'AHK interpreter not found for standalone syntax validation'
+          }
+          Get-FileHash $out -Algorithm SHA256 | Format-List
+
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw 'Inno Setup compiler missing' }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' 'EdgeHide\installer\EdgeHide.iss'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'EdgeHide/dist/EdgeHide-Setup-0.1.0-win-x64.exe')) { throw 'Installer missing' }
+
+      - name: Upload Windows portable and installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: EdgeHide-Windows-x64
+          path: |
+            EdgeHide/dist/EdgeHide.exe
+            EdgeHide/dist/EdgeHide-Setup-0.1.0-win-x64.exe
+          if-no-files-found: error
+          retention-days: 30
