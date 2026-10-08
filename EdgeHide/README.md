@@ -1,36 +1,33 @@
-# EdgeHide · Windows 贴边自动隐藏
+# EdgeHide — Windows 贴边自动隐藏工具
 
-EdgeHide 是独立开发的 AutoHotkey v2 窗口管理工具，置于本仓库的独立目录中。仅构建 EdgeHide，自带 Microsoft To Do 等普通窗口通用支持，不使用原仓库中未声明许可证的脚本。
+独立编写的 AutoHotkey v2 窗口管理工具，放置在此 Fork 的 `EdgeHide/` 目录。没有复用原仓库中未声明许可证的脚本。
 
-## 下载及安装
+## 下载与安装
 
-前往 [GitHub Actions](../../actions/workflows/build-edgehide-windows.yml)，打开最新成功的 **Build EdgeHide Windows** 运行，在 **Artifacts** 下载 `EdgeHide-Windows-x64`，解压后获得：
+打开 [Build EdgeHide Windows](../../actions/workflows/build-edgehide-windows.yml)，选择最新成功的工作流，在 **Artifacts** 下载 `EdgeHide-Windows-x64` 并解压。
 
-- `EdgeHide-Setup-0.1.0-win-x64.exe`：Windows 安装程序，提供可选开机自启。
-- `EdgeHide.exe`：绿色便携版，无需另外安装 AutoHotkey。
+- `EdgeHide-Setup-0.1.0-win-x64.exe`：安装版，支持可选开机启动。
+- `EdgeHide.exe`：绿色单文件版，无需安装 AutoHotkey。
 
-## 使用方法
+## 使用说明
 
-首先退出旧的 WinAutoHide，以免快捷键冲突，然后双击运行 EdgeHide.exe 或通过安装程序启动。
+先退出旧 WinAutoHide 以免冲突。激活需要隐藏的普通窗口：
+- Ctrl + ↑：隐藏到顶部。
+- Ctrl + ←：隐藏到左侧。
+- Ctrl + →：隐藏到右侧。
+- Ctrl + F4：恢复全部隐藏窗口。
 
-| 功能 | 操作 |
-|---|---|
-| 当前窗口顶部隐藏 | Ctrl + ↑ |
-| 当前窗口左侧隐藏 | Ctrl + ← |
-| 当前窗口右侧隐藏 | Ctrl + → |
-| 取消全部隐藏并恢复位置 | Ctrl + F4 |
+也可直接拖动普通窗口到顶部、左侧或右侧边缘松开，窗口会自动隐藏。鼠标移入边缘保留的 6px 窄条可展开，离开约 800ms 后再次收起。系统托盘可恢复窗口、开关拖动贴边。
 
-也可以直接拖动普通窗口到屏幕顶部、左侧或右侧附近，松开后自动收起。鼠标移到屏幕边缘隐藏条时展开；鼠标移开约 800ms 后再次隐藏。托盘菜单包含“恢复全部隐藏窗口”和“拖动到屏幕边缘自动隐藏”开关。最大化/最小化窗口须先还原。
+## 构建方式
 
-## 已知限制
+Actions 下载官方 AutoHotkey v2.0.29 运行时，使用 `/Validate` 验证脚本语法，再将源脚本作为 RCDATA 资源 #1 嵌入运行时生成可双击的独立 EXE，最终使用 Inno Setup 构建安装包。此方式避免旧 Ahk2Exe 的 `/iLib` 处理对新版 AHK v2 的不兼容和编译超时。
 
-- 这是一款通用窗口管理器，显示隐藏条需要临时置顶窗口；不是 Wallpaper/WorkerW 桌面层插件。
-- 多显示器、不同缩放比例、Windows 11 Snap 和微软商店应用的窗口行为需要实际 Windows 桌面验收。
-- GitHub Actions 构建成功并不等于已经完成 Microsoft To Do 的交互测试。
-- 权限低的程序通常不能操作以管理员身份运行的窗口。
+## 许可及限制
 
-## 许可
+- 此目录中的独立 EdgeHide 源码、打包脚本等采用 [MIT](LICENSE)。
+- 自带的 AutoHotkey 运行时遵守[官方许可证](third_party/AutoHotkey-license.txt)，运行时源代码可在 [AutoHotkey/AutoHotkey](https://github.com/AutoHotkey/AutoHotkey/tree/v2.0.29) 获取。
+- 中文安装语言资源来自 [kira-96/Inno-Setup-Chinese-Simplified-Translation](https://github.com/kira-96/Inno-Setup-Chinese-Simplified-Translation)（MIT）。
+- MIT 仅适用于本目录独立创作的代码，不适用于 Fork 中原作者未声明许可证的代码。
 
-此目录下**独立编写的 EdgeHide 代码**由 [MIT 许可证](LICENSE)授权。原始 `windwhim/winautohidev2` 仓库未声明代码许可证，本目录不从其复制源码，MIT 不适用于该仓库其他文件。
-
-安装程序所用简体中文语言资源来自 [kira-96/Inno-Setup-Chinese-Simplified-Translation](https://github.com/kira-96/Inno-Setup-Chinese-Simplified-Translation)（MIT，保留原作者版权信息）；编译器及 AutoHotkey 运行时遵循各自许可证。
+Windows 多显示器、DPI、Snap、微软商店应用等交互仍需在真实桌面验证。最大化和最小化窗口须先还原，管理员权限的窗口可能无法操作。

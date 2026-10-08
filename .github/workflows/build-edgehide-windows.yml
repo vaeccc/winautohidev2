@@ -1,5 +1,4 @@
 name: Build EdgeHide Windows
-
 on:
   workflow_dispatch:
   push:
@@ -7,61 +6,56 @@ on:
     paths:
       - 'EdgeHide/**'
       - '.github/workflows/build-edgehide-windows.yml'
-
 permissions:
   contents: read
-
+concurrency:
+  group: edgehide-windows-main
+  cancel-in-progress: true
 jobs:
   package:
     runs-on: windows-2025
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare build directory
-        shell: pwsh
-        run: New-Item -ItemType Directory -Force -Path 'EdgeHide/dist' | Out-Null
-
-      - name: Compile AHK v2 to standalone EXE
-        uses: benmusson/ahk2exe-action@v1
-        with:
-          in: .\EdgeHide\src\EdgeHide.ahk
-          out: .\EdgeHide\dist\EdgeHide.exe
-          target: x64
-          compression: none
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Verify and validate EXE and script
+      - name: Fetch official AutoHotkey and validate syntax
         shell: pwsh
         run: |
-          $out = 'EdgeHide/dist/EdgeHide.exe'
-          if (-not (Test-Path $out)) { throw 'EXE not generated' }
-          if ((Get-Item $out).Length -lt 100000) { throw 'EXE unexpectedly small' }
-          $runtime = Get-ChildItem -Path '.ahk2exe-v2-action' -Recurse -Filter 'AutoHotkey64.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($runtime) {
-            & $runtime.FullName /ErrorStdOut=UTF-8 /Validate 'EdgeHide/src/EdgeHide.ahk'
-            if ($LASTEXITCODE -ne 0) { throw 'AutoHotkey v2 syntax validation failed' }
-          } else {
-            Write-Warning 'AHK interpreter not found for standalone syntax validation'
-          }
-          Get-FileHash $out -Algorithm SHA256 | Format-List
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP 'AutoHotkey.zip'
+          $runtimeDir = Join-Path $env:RUNNER_TEMP 'autohotkey-runtime'
+          Invoke-WebRequest -Uri 'https://github.com/AutoHotkey/AutoHotkey/releases/download/v2.0.29/AutoHotkey_2.0.29.zip' -OutFile $zip
+          Expand-Archive -LiteralPath $zip -DestinationPath $runtimeDir -Force
+          $runtime = Get-ChildItem -LiteralPath $runtimeDir -Recurse -Filter 'AutoHotkey64.exe' -File | Select-Object -First 1
+          if (-not $runtime) { throw 'AutoHotkey64.exe missing' }
+          & $runtime.FullName /ErrorStdOut=UTF-8 /Validate 'EdgeHide/src/EdgeHide.ahk'
+          if ($LASTEXITCODE -ne 0) { throw 'AutoHotkey script syntax validation failed' }
+          New-Item -ItemType Directory -Force -Path 'EdgeHide/dist' | Out-Null
+          Copy-Item -LiteralPath $runtime.FullName -Destination 'EdgeHide/dist/EdgeHide.exe'
+
+      - name: Embed EdgeHide script as Win32 RCDATA resource
+        shell: pwsh
+        run: |
+          ./EdgeHide/tools/embed-script.ps1 -ExePath 'EdgeHide/dist/EdgeHide.exe' -ScriptPath 'EdgeHide/src/EdgeHide.ahk'
+          if ((Get-Item 'EdgeHide/dist/EdgeHide.exe').Length -lt 100000) { throw 'Standalone EXE is too small' }
+          Get-FileHash 'EdgeHide/dist/EdgeHide.exe' -Algorithm SHA256 | Format-List
 
       - name: Install Inno Setup 6
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
-          if (-not (Test-Path $iscc)) { throw 'Inno Setup compiler missing' }
+          if (-not (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')) { throw 'Inno Setup compiler missing' }
 
-      - name: Build installer
+      - name: Create EdgeHide installer
         shell: pwsh
         run: |
           & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' 'EdgeHide\installer\EdgeHide.iss'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'EdgeHide/dist/EdgeHide-Setup-0.1.0-win-x64.exe')) { throw 'Installer missing' }
 
-      - name: Upload Windows portable and installer
+      - name: Publish build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: EdgeHide-Windows-x64
