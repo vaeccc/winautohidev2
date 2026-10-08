@@ -65,3 +65,52 @@ jobs:
             EdgeHide/dist/EdgeHide-Setup-0.1.0-win-x64.exe
           if-no-files-found: error
           retention-days: 30
+
+  release:
+    name: Publish EdgeHide v0.1.0 preview
+    needs: package
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release notes
+        uses: actions/checkout@v4
+
+      - name: Download verified build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: EdgeHide-Windows-x64
+          path: release-assets
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test -s release-assets/EdgeHide.exe
+          test -s release-assets/EdgeHide-Setup-0.1.0-win-x64.exe
+          if gh release view v0.1.0 >/dev/null 2>&1; then
+            echo "v0.1.0 already exists; will not replace published files."
+          else
+            gh release create v0.1.0 \
+              release-assets/EdgeHide.exe \
+              release-assets/EdgeHide-Setup-0.1.0-win-x64.exe \
+              --target "${GITHUB_SHA}" \
+              --title "EdgeHide v0.1.0 (Preview)" \
+              --notes-file EdgeHide/RELEASE_NOTES.md \
+              --prerelease
+          fi
+
+      - name: Verify published release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release view v0.1.0 --json tagName,isPrerelease,assets,url
+          gh release view v0.1.0 --json assets --jq '.assets[].name' | grep -Fx 'EdgeHide.exe'
+          gh release view v0.1.0 --json assets --jq '.assets[].name' | grep -Fx 'EdgeHide-Setup-0.1.0-win-x64.exe'
