@@ -29,8 +29,20 @@ jobs:
           Expand-Archive -LiteralPath $zip -DestinationPath $runtimeDir -Force
           $runtime = Get-ChildItem -LiteralPath $runtimeDir -Recurse -Filter 'AutoHotkey64.exe' -File | Select-Object -First 1
           if (-not $runtime) { throw 'AutoHotkey64.exe missing' }
-          & $runtime.FullName /ErrorStdOut=UTF-8 /Validate 'EdgeHide/src/EdgeHide.ahk'
-          if ($LASTEXITCODE -ne 0) { throw 'AutoHotkey script syntax validation failed' }
+          $psi = [System.Diagnostics.ProcessStartInfo]::new($runtime.FullName)
+          $psi.UseShellExecute = $false
+          $psi.RedirectStandardError = $true
+          $psi.RedirectStandardOutput = $true
+          $psi.ArgumentList.Add('/Validate')
+          $psi.ArgumentList.Add('/ErrorStdOut=UTF-8')
+          $psi.ArgumentList.Add((Resolve-Path 'EdgeHide/src/EdgeHide.ahk').Path)
+          $p = [System.Diagnostics.Process]::Start($psi)
+          if (-not $p.WaitForExit(15000)) { $p.Kill(); throw 'AutoHotkey syntax validation timed out' }
+          $stdout = $p.StandardOutput.ReadToEnd()
+          $stderr = $p.StandardError.ReadToEnd()
+          if ($stdout) { Write-Host "AHK output: $stdout" }
+          if ($stderr) { Write-Host "AHK errors: $stderr" }
+          if ($p.ExitCode -ne 0) { throw "AutoHotkey syntax validation failed, exit code: $($p.ExitCode)" }
           New-Item -ItemType Directory -Force -Path 'EdgeHide/dist' | Out-Null
           Copy-Item -LiteralPath $runtime.FullName -Destination 'EdgeHide/dist/EdgeHide.exe'
 
