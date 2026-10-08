@@ -1,6 +1,8 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 #Warn
+if (A_Args.Length && A_Args[1] = "--edgehide-validate")
+    ExitApp(0)
 Persistent()
 
 ; EdgeHide - 三方向贴边自动隐藏 (AutoHotkey v2)
